@@ -1,5 +1,6 @@
-import sys
+#!/usr/bin/env python3
 import json
+import sys
 import re
 from urllib.parse import urlparse
 
@@ -8,42 +9,39 @@ def process_data(input_data):
     
     for line in input_data:
         try:
-            # Split the line based on the separator (tab in this example)
-            parts = line.strip().split('\t')
-
-            # Extract data from the TXT file
-            created_at = parts[0]
-            account_json = parts[1]
-            media_attachments_json = parts[2]
-            emojis_json = parts[3]
-            content = parts[4]
-
-            data = json.loads(account_json)  # Parse the JSON data in the account field
-
+            data = json.loads(line)
             toot_with_media_dict = {}
             toot_with_media_id = 'toot_with_media'
             
-            followers = int(data.get('followers_count', 0))
-            reblogs_count = int(data.get('reblogs_count', 0))
-            favourites_count = int(data.get('favourites_count', 0))
-
-            engagement_rate = (reblogs_count + favourites_count) / followers if followers > 0 else 0
-
-            user_id = 'user:' + str(data.get('id'))
-            user_data = {
-                "date": created_at,
-                "followers": followers,
-                "engagement_rate": engagement_rate
-            }
-
-            croissance_id = "croissance:" + data.get('created_at').split('-')[0] + '-' + data.get('created_at').split('-')[1]
-            croissance_data = {"value": 1, "user_id": user_id}
-
-            # Emit key-value pairs for the reducer
-            print(f"{user_id}\t{user_data}")
-            print(f"{croissance_id}\t{croissance_data}")
+            created_at = data["created_at"].split(' ')[1].split('+')[0]
+            account = data.get("account")
+            media_attachments = data.get("media_attachments")
+            emojis = data.get("emojis") if data.get("emojis") else []
+            websites = data.get("content") if data.get("content") else []
             
-            if media_attachments_json:
+            if account:
+                user_id = 'user:' + str(account.get('id'))
+                followers = int(account.get('followers_count', 0))
+                reblogs_count = data.get('reblogs_count', 0)
+                favourites_count = data.get('favourites_count', 0)
+
+                engagement_rate = (reblogs_count + favourites_count) / followers if followers > 0 else 0
+
+                croissance_id = "croissance:" + account.get('created_at').split('-')[0] + '-' + account.get('created_at').split('-')[1]
+
+                user_data = {
+                    "date": created_at,
+                    "followers": followers,
+                    "engagement_rate": engagement_rate
+                }
+
+                croissance_data = {"value": 1, "user_id": user_id}
+
+                # Emit key-value pairs for the reducer
+                print(f"{user_id}\t{user_data}")
+                print(f"{croissance_id}\t{croissance_data}")
+            
+            if media_attachments:
                 toot_with_media_dict["value"] = 1
                 print(f"{toot_with_media_id}\t{toot_with_media_dict}")
 
@@ -51,19 +49,18 @@ def process_data(input_data):
             language_data = {"value": 1}
             print(f"{language_id}\t{language_data}")
 
-            if emojis_json:
-                emojis = json.loads(emojis_json)
+            if emojis != []:
                 for emoji in emojis:
                     emoji_id = "emoji:" + emoji.get('shortcode')
                     emoji_data = {"value": 1}
                     print(f"{emoji_id}\t{emoji_data}")
-
-            if content:
-                urls = re.search(pattern, content)
+            
+            if websites != []:
+                urls = re.search(pattern, websites)
                 if urls:
                     website_id = "website:" + urlparse(urls.group(0)).netloc
                     website_data = {"value": 1}
-                    print(f"{website_id}\t{website_data}")
+                    print(f"{website_id}\t{website_data}")            
 
         except Exception as e:
             # Log exceptions to standard error
